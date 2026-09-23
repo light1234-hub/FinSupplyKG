@@ -20,6 +20,7 @@ METRIC_TAGS = {
 
     "net_income": [
         "NetIncomeLoss",
+        "ProfitLoss",
     ],
 
     "cash": [
@@ -100,17 +101,6 @@ def select_instant_fact(
 
     return current_period[0]
 
-    def duration(candidate: dict) -> int:
-        start = date.fromisoformat(candidate["start"])
-        end = date.fromisoformat(candidate["end"])
-
-        return (end - start).days
-
-    return min(
-        current_period,
-        key=duration
-    )
-
 def get_company_facts(
     ticker: str,
     sec_identity: str
@@ -159,7 +149,6 @@ def find_concept(
 
     return None, None
 
-
 def facts_for_accession(
     concept: dict,
     accession: str
@@ -183,7 +172,6 @@ def facts_for_accession(
                 })
 
     return matches
-
 
 def extract_metric_candidates(
     rec: FilingRecord,

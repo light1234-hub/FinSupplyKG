@@ -11,43 +11,94 @@ from .fetch import FilingRecord
 from datetime import date
 
 
-REVENUE_TAGS = [
-    "RevenueFromContractWithCustomerExcludingAssessedTax",
-    "Revenues",
-    "SalesRevenueNet",
-]
+METRIC_TAGS = {
+    "revenue": [
+        "RevenueFromContractWithCustomerExcludingAssessedTax",
+        "Revenues",
+        "SalesRevenueNet",
+    ],
 
-NET_INCOME_TAGS = [
-    "NetIncomeLoss",
-]
+    "net_income": [
+        "NetIncomeLoss",
+    ],
 
-CASH_TAGS = [
-    "CashAndCashEquivalentsAtCarryingValue",
-]
+    "cash": [
+        "CashAndCashEquivalentsAtCarryingValue",
+    ],
 
-ASSET_TAGS = [
-    "Assets",
-]
+    "assets": [
+        "Assets",
+    ],
 
-INVENTORY_TAGS = [
-    "InventoryNet",
-]
+    "inventory": [
+        "InventoryNet",
+    ],
+
+    "operating_income": [
+        "OperatingIncomeLoss",
+    ],
+
+    "capex": [
+        "PaymentsToAcquirePropertyPlantAndEquipment",
+    ],
+
+    "eps": [
+        "EarningsPerShareDiluted",
+    ],
+}
 
 def select_quarter_fact(
     candidates: list[dict],
     rec: FilingRecord
 ) -> dict | None:
-    """Select the current standalone quarter from 10-Q XBRL facts."""
+    """Select the standalone current-quarter XBRL fact."""
+
+    target_end = str(rec.period_of_report)
+
+    current_period = []
+
+    for candidate in candidates:
+        start = candidate.get("start")
+        end = candidate.get("end")
+
+        if not start or not end:
+            continue
+
+        if str(end) != target_end:
+            continue
+
+        start_date = date.fromisoformat(start)
+        end_date = date.fromisoformat(end)
+
+        duration_days = (end_date - start_date).days
+
+        current_period.append(
+            (duration_days, candidate)
+        )
+
+    if not current_period:
+        return None
+
+    return min(
+        current_period,
+        key=lambda item: item[0]
+    )[1]
+def select_instant_fact(
+    candidates: list[dict],
+    rec: FilingRecord
+) -> dict | None:
+    """Select an instant XBRL fact for the filing period end date."""
 
     current_period = [
         candidate
         for candidate in candidates
         if candidate.get("end") == rec.period_of_report
-        and candidate.get("start")
     ]
 
     if not current_period:
         return None
+
+    return current_period[0]
 
     def duration(candidate: dict) -> int:
         start = date.fromisoformat(candidate["start"])
@@ -170,3 +221,118 @@ def extract_metric_candidates(
             candidates.append(match)
 
     return candidates
+
+def format_fact(fact: dict | None) -> dict | None:
+    """Convert a selected XBRL fact into a normalized record."""
+
+    if fact is None:
+        return None
+
+    return {
+        "value": fact.get("val"),
+        "unit": fact.get("unit"),
+        "concept": fact.get("concept"),
+        "start": fact.get("start"),
+        "end": fact.get("end"),
+    }
+
+def extract_financial_record(
+    rec: FilingRecord,
+    sec_identity: str
+) -> dict:
+    """Extract a normalized financial record from a filing."""
+
+    revenue_candidates = extract_metric_candidates(
+        rec,
+        sec_identity,
+        METRIC_TAGS["revenue"]
+    )
+
+    net_income_candidates = extract_metric_candidates(
+        rec,
+        sec_identity,
+        METRIC_TAGS["net_income"]
+    )
+
+    cash_candidates = extract_metric_candidates(
+        rec,
+        sec_identity,
+        METRIC_TAGS["cash"]
+    )
+
+    asset_candidates = extract_metric_candidates(
+        rec,
+        sec_identity,
+        METRIC_TAGS["assets"]
+    )
+
+    inventory_candidates = extract_metric_candidates(
+        rec,
+        sec_identity,
+        METRIC_TAGS["inventory"]
+    )
+
+    operating_income_candidates = extract_metric_candidates(
+        rec,
+        sec_identity,
+        METRIC_TAGS["operating_income"]
+    )
+
+    eps_candidates = extract_metric_candidates(
+        rec,
+        sec_identity,
+        METRIC_TAGS["eps"]
+    )
+
+    revenue = select_quarter_fact(
+        revenue_candidates,
+        rec
+    )
+
+    net_income = select_quarter_fact(
+        net_income_candidates,
+        rec
+    )
+
+    cash = select_instant_fact(
+        cash_candidates,
+        rec
+    )
+
+    assets = select_instant_fact(
+        asset_candidates,
+        rec
+    )
+
+    inventory = select_instant_fact(
+        inventory_candidates,
+        rec
+    )
+
+    operating_income = select_quarter_fact(
+        operating_income_candidates,
+        rec
+    )
+
+    eps = select_quarter_fact(
+        eps_candidates,
+        rec
+    )
+
+
+    return {
+        "ticker": rec.ticker,
+        "form": rec.form,
+        "accession": rec.accession,
+        "filing_date": rec.filing_date,
+        "period_of_report": rec.period_of_report,
+
+        "revenue": format_fact(revenue),
+        "net_income": format_fact(net_income),
+        "cash": format_fact(cash),
+        "assets": format_fact(assets),
+        "inventory": format_fact(inventory),
+        "operating_income": format_fact(operating_income),
+        "eps": format_fact(eps),
+    }
+

@@ -12,24 +12,82 @@ load_dotenv()
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.getenv("FSKG_DATA_DIR", ROOT / "data"))
 
-# US-domiciled issuers file 10-K; foreign private issuers file 20-F.
-TICKERS_10K = ["NVDA", "INTC", "AMD", "AVGO", "QCOM", "TXN", "MU", "AMAT", "LRCX", "MRVL", "WDC"]
-TICKERS_20F = ["TSM", "ASML"]
-TICKERS = TICKERS_10K + TICKERS_20F
+# Companies currently included in the project.
+# US issuers use 10-K, 10-Q and 8-K.
+# Foreign private issuers use 20-F and 6-K.
+
+COMPANIES = {
+    "NVDA": {
+        "name": "NVIDIA Corporation",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "INTC": {
+        "name": "Intel Corporation",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "AMD": {
+        "name": "Advanced Micro Devices, Inc.",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "AVGO": {
+        "name": "Broadcom Inc.",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "QCOM": {
+        "name": "QUALCOMM Incorporated",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "TXN": {
+        "name": "Texas Instruments Incorporated",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "MU": {
+        "name": "Micron Technology, Inc.",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "AMAT": {
+        "name": "Applied Materials, Inc.",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "LRCX": {
+        "name": "Lam Research Corporation",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "MRVL": {
+        "name": "Marvell Technology, Inc.",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "WDC": {
+        "name": "Western Digital Corporation",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "TSM": {
+        "name": "Taiwan Semiconductor Manufacturing Company Limited",
+        "forms": ["20-F", "6-K"],
+    },
+    "ASML": {
+        "name": "ASML Holding N.V.",
+        "forms": ["20-F", "6-K"],
+    },
+}
 
 
-def form_for(ticker: str) -> str:
-    return "20-F" if ticker in TICKERS_20F else "10-K"
+TICKERS = list(COMPANIES.keys())
+
+
+def forms_for(ticker: str) -> list[str]:
+    """Return all SEC filing types monitored for a company."""
+    return COMPANIES[ticker]["forms"]
 
 
 @dataclass(frozen=True)
 class SectionSpec:
     key: str                 # our canonical key
     item: str                # item number as printed in the filing ("1A", "4")
-    datamule_title: str      # datamule standardized_title
-    edgar_attr: str          # edgartools TenK / TwentyF property
+    datamule_title: str | None = None      # datamule standardized_title
+    edgar_attr: str | None = None          # edgartools TenK / TwentyF property
     title_patterns: tuple[str, ...] = ()  # heading regexes for filings without "Item N" headings
-
+    edgar_item: str | None = None
 
 # Sections that carry supplier / customer / dependency disclosures.
 SECTIONS_10K = [
@@ -48,16 +106,144 @@ SECTIONS_20F = [
                 (r"operating and financial reviews? and prospects", r"financial performance")),
 ]
 
+SECTIONS_10Q = [
+    SectionSpec(
+        key="mdna",
+        item="2",
+        title_patterns=(
+            r"management'?s discussion and analysis"
+            r"(?: of financial condition and results of operations)?",
+        ),
+        edgar_item="Item 2",
+    ),
+
+    SectionSpec(
+        key="risk_factors",
+        item="1A",
+        title_patterns=(r"risk factors",),
+        edgar_item="Item 1A",
+    ),
+]
+
+SECTIONS_8K = [
+    SectionSpec(
+        key="material_agreement",
+        item="1.01",
+        title_patterns=(
+            r"entry into a material definitive agreement",
+        ),
+        edgar_item="Item 1.01",
+    ),
+
+    SectionSpec(
+        key="agreement_termination",
+        item="1.02",
+        title_patterns=(
+            r"termination of a material definitive agreement",
+        ),
+        edgar_item="Item 1.02",
+    ),
+
+    SectionSpec(
+        key="cybersecurity_incident",
+        item="1.05",
+        title_patterns=(
+            r"material cybersecurity incidents?",
+        ),
+        edgar_item="Item 1.05",
+    ),
+
+    SectionSpec(
+        key="acquisition_disposition",
+        item="2.01",
+        title_patterns=(
+            r"completion of acquisition or disposition of assets",
+        ),
+        edgar_item="Item 2.01",
+    ),
+
+    SectionSpec(
+        key="results_operations",
+        item="2.02",
+        title_patterns=(
+            r"results of operations and financial condition",
+        ),
+        edgar_item="Item 2.02",
+    ),
+
+    SectionSpec(
+        key="financial_obligation",
+        item="2.03",
+        title_patterns=(
+            r"creation of a direct financial obligation",
+        ),
+        edgar_item="Item 2.03",
+    ),
+
+    SectionSpec(
+        key="exit_disposal",
+        item="2.05",
+        title_patterns=(
+            r"costs associated with exit or disposal activities",
+        ),
+        edgar_item="Item 2.05",
+    ),
+
+    SectionSpec(
+        key="material_impairment",
+        item="2.06",
+        title_patterns=(
+            r"material impairments?",
+        ),
+        edgar_item="Item 2.06",
+    ),
+
+    SectionSpec(
+        key="regulation_fd",
+        item="7.01",
+        title_patterns=(
+            r"regulation fd disclosure",
+        ),
+        edgar_item="Item 7.01",
+    ),
+
+    SectionSpec(
+        key="other_events",
+        item="8.01",
+        title_patterns=(
+            r"other events",
+        ),
+        edgar_item="Item 8.01",
+    ),
+]
+
+
+
 
 def sections_for(form: str) -> list[SectionSpec]:
-    return SECTIONS_20F if form == "20-F" else SECTIONS_10K
+    if form == "10-K":
+        return SECTIONS_10K
+
+    if form == "10-Q":
+        return SECTIONS_10Q
+
+    if form == "8-K":
+        return SECTIONS_8K
+
+    if form == "20-F":
+        return SECTIONS_20F
+
+    if form == "6-K":
+        return []
+
+    raise ValueError(f"Unsupported filing form: {form}")
 
 
 @dataclass
 class PipelineConfig:
-    filing_start: str = "2024-01-01"
-    filing_end: str = "2025-12-31"
-    filings_per_ticker: int = 1          # most recent N original (non-amended) filings in window
+    filing_start: str | None = None
+    filing_end: str | None = None
+    filings_per_ticker: int = 5          # most recent N original (non-amended) filings in window
     overlap_sentences: int = 7
     max_words_per_chunk: int = 800
     # Parser results outside this range are treated as misses: below it is a stub

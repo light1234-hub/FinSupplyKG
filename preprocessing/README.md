@@ -5,19 +5,22 @@ sections, chunks them with pySBD, and builds a hybrid BM25 + Gemini dense index.
 
 ## Setup
 
+All commands run from this `preprocessing/` folder; the virtualenv lives at the repo root.
+
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cd preprocessing
+python3 -m venv ../.venv && ../.venv/bin/pip install -r requirements.txt
 cp .env.example .env   # set SEC_IDENTITY and GEMINI_API_KEY
 ```
 
 ## Run
 
 ```bash
-.venv/bin/python -m finsupplykg.cli build                 # all 13 tickers, with embeddings
-.venv/bin/python -m finsupplykg.cli build --no-embed      # BM25 only (no API key needed)
-.venv/bin/python -m finsupplykg.cli build --tickers NVDA TSM --max-words 800 --overlap 7
-.venv/bin/python -m finsupplykg.cli search "reliance on TSMC CoWoS capacity" --ticker NVDA
-.venv/bin/python -m pytest tests
+../.venv/bin/python -m finsupplykg.cli build                 # all 13 tickers, with embeddings
+../.venv/bin/python -m finsupplykg.cli build --no-embed      # BM25 only (no API key needed)
+../.venv/bin/python -m finsupplykg.cli build --tickers NVDA TSM --max-words 800 --overlap 7
+../.venv/bin/python -m finsupplykg.cli search "reliance on TSMC CoWoS capacity" --ticker NVDA
+../.venv/bin/python -m pytest tests
 ```
 
 ## Pipeline

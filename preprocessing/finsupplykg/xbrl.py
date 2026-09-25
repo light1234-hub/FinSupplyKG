@@ -12,10 +12,6 @@ from datetime import date
 
 import math
 
-FOREIGN_REPORTING_CURRENCY = {
-    "TSM": "TWD",
-    "ASML": "EUR",
-}
 FINANCIAL_METRICS = (
     "revenue",
     "net_income",
@@ -62,16 +58,47 @@ METRIC_TAGS = {
         "EarningsPerShareDiluted",
     ],
 }
+FILING_FALLBACK_CONCEPTS = {
+    "revenue": (
+        "us-gaap:Revenues",
+        "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+        "us-gaap:SalesRevenueNet",
+        "ifrs-full:RevenueFromContractsWithCustomers",
+    ),
 
-IFRS_METRIC_TAGS = {
-    "revenue": "ifrs-full:RevenueFromContractsWithCustomers",
-    "net_income": "ifrs-full:ProfitLoss",
-    "cash": "ifrs-full:CashAndCashEquivalents",
-    "assets": "ifrs-full:Assets",
-    "inventory": "ifrs-full:Inventories",
-    "operating_income": "ifrs-full:ProfitLossFromOperatingActivities",
-    "eps": "ifrs-full:DilutedEarningsLossPerShare",
+    "net_income": (
+        "us-gaap:NetIncomeLoss",
+        "ifrs-full:ProfitLossAttributableToOwnersOfParent",
+        "ifrs-full:ProfitLoss",
+    ),
+
+    "cash": (
+        "us-gaap:CashAndCashEquivalentsAtCarryingValue",
+        "us-gaap:CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+        "ifrs-full:CashAndCashEquivalents",
+    ),
+
+    "assets": (
+        "us-gaap:Assets",
+        "ifrs-full:Assets",
+    ),
+
+    "inventory": (
+        "us-gaap:InventoryNet",
+        "ifrs-full:Inventories",
+    ),
+
+    "operating_income": (
+        "us-gaap:OperatingIncomeLoss",
+        "ifrs-full:ProfitLossFromOperatingActivities",
+    ),
+
+    "eps": (
+        "us-gaap:EarningsPerShareDiluted",
+        "ifrs-full:DilutedEarningsLossPerShare",
+    ),
 }
+
 def select_quarter_fact(
     candidates: list[dict],
     rec: FilingRecord
@@ -162,206 +189,6 @@ def select_instant_fact(
 
     return current_period[0]
 
-def select_ifrs_duration_fact(
-    xbrl,
-    concept: str,
-    rec: FilingRecord
-) -> dict | None:
-    """Select the consolidated annual IFRS fact in the reporting currency."""
-
-    currency = FOREIGN_REPORTING_CURRENCY.get(
-        rec.ticker
-    )
-
-    df = (
-        xbrl.facts
-        .query()
-        .by_concept(
-            concept,
-            exact=True
-        )
-        .by_dimension(None)
-        .to_dataframe()
-    )
-
-    if df.empty:
-        return None
-
-    target_end = str(rec.period_of_report)
-
-    matches = df[
-        (df["period_end"].astype(str) == target_end)
-        & (df["period_type"] == "duration")
-        & (df["currency"] == currency)
-    ]
-
-    if matches.empty:
-        return None
-
-    if "fiscal_period" in matches.columns:
-
-        annual = matches[
-            matches["fiscal_period"] == "FY"
-        ]
-
-        if not annual.empty:
-            matches = annual
-
-    if "statement_type" in matches.columns:
-
-        statement_matches = matches[
-            matches["statement_type"]
-            == "IncomeStatement"
-        ]
-
-        if not statement_matches.empty:
-            matches = statement_matches
-
-    row = matches.iloc[0]
-
-    value = row.get("numeric_value")
-
-    if hasattr(value, "item"):
-        value = value.item()
-
-    if isinstance(value, float) and value.is_integer():
-        value = int(value)
-
-    return {
-        "value": value,
-        "unit": row.get("unit_ref"),
-        "currency": row.get("currency"),
-        "concept": row.get("concept"),
-        "taxonomy": "ifrs-full",
-        "start": row.get("period_start"),
-        "end": row.get("period_end"),
-    }
-
-def select_ifrs_instant_fact(
-    xbrl,
-    concept: str,
-    rec: FilingRecord
-) -> dict | None:
-    """Select a consolidated IFRS instant fact in the reporting currency."""
-
-    currency = FOREIGN_REPORTING_CURRENCY.get(
-        rec.ticker
-    )
-
-    df = (
-        xbrl.facts
-        .query()
-        .by_concept(
-            concept,
-            exact=True
-        )
-        .by_dimension(None)
-        .to_dataframe()
-    )
-
-    if df.empty:
-        return None
-
-    target_end = str(rec.period_of_report)
-
-    matches = df[
-        (df["period_instant"].astype(str) == target_end)
-        & (df["period_type"] == "instant")
-        & (df["currency"] == currency)
-    ]
-
-    if matches.empty:
-        return None
-
-    row = matches.iloc[0]
-
-    value = row.get("numeric_value")
-
-    if hasattr(value, "item"):
-        value = value.item()
-
-    if isinstance(value, float) and value.is_integer():
-        value = int(value)
-
-    return {
-        "value": value,
-        "unit": row.get("unit_ref"),
-        "currency": row.get("currency"),
-        "concept": row.get("concept"),
-        "taxonomy": "ifrs-full",
-        "start": None,
-        "end": row.get("period_instant"),
-    }
-def extract_ifrs_financial_record(
-    rec: FilingRecord,
-    filing
-) -> dict:
-    """Extract normalized financial metrics from a 20-F filing."""
-
-    xbrl = filing.xbrl()
-
-    if xbrl is None:
-        raise ValueError(
-            f"No filing-level XBRL found for {rec.ticker}"
-        )
-
-    revenue = select_ifrs_duration_fact(
-        xbrl,
-        IFRS_METRIC_TAGS["revenue"],
-        rec
-    )
-
-    net_income = select_ifrs_duration_fact(
-        xbrl,
-        IFRS_METRIC_TAGS["net_income"],
-        rec
-    )
-
-    operating_income = select_ifrs_duration_fact(
-        xbrl,
-        IFRS_METRIC_TAGS["operating_income"],
-        rec
-    )
-
-    eps = select_ifrs_duration_fact(
-        xbrl,
-        IFRS_METRIC_TAGS["eps"],
-        rec
-    )
-
-    cash = select_ifrs_instant_fact(
-        xbrl,
-        IFRS_METRIC_TAGS["cash"],
-        rec
-    )
-
-    assets = select_ifrs_instant_fact(
-        xbrl,
-        IFRS_METRIC_TAGS["assets"],
-        rec
-    )
-
-    inventory = select_ifrs_instant_fact(
-        xbrl,
-        IFRS_METRIC_TAGS["inventory"],
-        rec
-    )
-
-    return {
-        "ticker": rec.ticker,
-        "form": rec.form,
-        "accession": rec.accession,
-        "filing_date": rec.filing_date,
-        "period_of_report": rec.period_of_report,
-
-        "revenue": revenue,
-        "net_income": net_income,
-        "cash": cash,
-        "assets": assets,
-        "inventory": inventory,
-        "operating_income": operating_income,
-        "eps": eps,
-    }
 def get_company_facts(
     ticker: str,
     sec_identity: str
@@ -555,143 +382,6 @@ def format_fact(fact: dict | None) -> dict | None:
         "end": fact.get("end"),
     }
 
-def extract_financial_record(
-    rec: FilingRecord,
-    filing,
-    sec_identity: str
-) -> dict:
-    """Extract a normalized financial record from a filing."""
-
-    if rec.form == "20-F":
-        return extract_ifrs_financial_record(
-            rec,
-            filing
-        )
-
-    if rec.form not in {"10-Q", "10-K"}:
-        raise ValueError(
-            f"Unsupported form for structured financial extraction: {rec.form}"
-        )
-
-    revenue_candidates = extract_metric_candidates(
-        rec,
-        sec_identity,
-        METRIC_TAGS["revenue"]
-    )
-
-    net_income_candidates = extract_metric_candidates(
-        rec,
-        sec_identity,
-        METRIC_TAGS["net_income"]
-    )
-
-    cash_candidates = extract_metric_candidates(
-        rec,
-        sec_identity,
-        METRIC_TAGS["cash"]
-    )
-
-    asset_candidates = extract_metric_candidates(
-        rec,
-        sec_identity,
-        METRIC_TAGS["assets"]
-    )
-
-    inventory_candidates = extract_metric_candidates(
-        rec,
-        sec_identity,
-        METRIC_TAGS["inventory"]
-    )
-
-    operating_income_candidates = extract_metric_candidates(
-        rec,
-        sec_identity,
-        METRIC_TAGS["operating_income"]
-    )
-
-    eps_candidates = extract_metric_candidates(
-        rec,
-        sec_identity,
-        METRIC_TAGS["eps"]
-    )
-
-
-    if rec.form == "10-K":
-
-        revenue = select_annual_fact(
-            revenue_candidates,
-            rec
-        )
-
-        net_income = select_annual_fact(
-            net_income_candidates,
-            rec
-        )
-
-        operating_income = select_annual_fact(
-            operating_income_candidates,
-            rec
-        )
-
-        eps = select_annual_fact(
-            eps_candidates,
-            rec
-        )
-
-    else:
-
-        revenue = select_quarter_fact(
-            revenue_candidates,
-            rec
-        )
-
-        net_income = select_quarter_fact(
-            net_income_candidates,
-            rec
-        )
-
-        operating_income = select_quarter_fact(
-            operating_income_candidates,
-            rec
-        )
-
-        eps = select_quarter_fact(
-            eps_candidates,
-            rec
-        )
-
-
-    cash = select_instant_fact(
-        cash_candidates,
-        rec
-    )
-
-    assets = select_instant_fact(
-        asset_candidates,
-        rec
-    )
-
-    inventory = select_instant_fact(
-        inventory_candidates,
-        rec
-    )
-
-
-    return {
-        "ticker": rec.ticker,
-        "form": rec.form,
-        "accession": rec.accession,
-        "filing_date": rec.filing_date,
-        "period_of_report": rec.period_of_report,
-
-        "revenue": format_fact(revenue),
-        "net_income": format_fact(net_income),
-        "cash": format_fact(cash),
-        "assets": format_fact(assets),
-        "inventory": format_fact(inventory),
-        "operating_income": format_fact(operating_income),
-        "eps": format_fact(eps),
-    }
 def select_statement_period_column(
     df,
     rec: FilingRecord
@@ -1099,12 +789,332 @@ def extract_standardized_financial_record(
         "operating_income": operating_income,
         "eps": eps,
     }
+
+
+DURATION_METRICS = {
+    "revenue",
+    "net_income",
+    "operating_income",
+    "eps",
+}
+
+INSTANT_METRICS = {
+    "cash",
+    "assets",
+    "inventory",
+}
+
+
+def _currency_from_unit(
+    unit: str | None
+) -> str | None:
+
+    if not unit:
+        return None
+
+    if "/" in unit:
+        return unit.split("/", 1)[0].upper()
+
+    if len(unit) == 3 and unit.isalpha():
+        return unit.upper()
+
+    return None
+
+def fallback_companyfacts_metric(
+    rec: FilingRecord,
+    sec_identity: str,
+    metric: str
+) -> dict | None:
+    """Recover one missing metric using SEC CompanyFacts."""
+
+    tags = METRIC_TAGS.get(metric)
+
+    if not tags:
+        return None
+
+    candidates = extract_metric_candidates(
+        rec,
+        sec_identity,
+        tags
+    )
+
+    if not candidates:
+        return None
+
+    if metric in INSTANT_METRICS:
+
+        selected = select_instant_fact(
+            candidates,
+            rec
+        )
+
+    elif rec.form == "10-Q":
+
+        selected = select_quarter_fact(
+            candidates,
+            rec
+        )
+
+    elif rec.form == "10-K":
+
+        selected = select_annual_fact(
+            candidates,
+            rec
+        )
+
+    else:
+        return None
+
+    if selected is None:
+        return None
+
+    unit = selected.get("unit")
+
+    concept = selected.get("concept")
+
+    if concept:
+        concept = f"us-gaap_{concept}"
+
+    return {
+        "value": selected.get("val"),
+        "concept": concept,
+        "standard_concept": None,
+        "label": None,
+        "period": selected.get("end"),
+        "unit": unit,
+        "currency": _currency_from_unit(unit),
+    }
+
+def get_record_currency(
+    record: dict
+) -> str | None:
+    """Infer the reporting currency from existing metrics."""
+
+    counts = {}
+
+    for metric in FINANCIAL_METRICS:
+
+        fact = record.get(metric)
+
+        if not isinstance(fact, dict):
+            continue
+
+        currency = fact.get("currency")
+
+        if not currency:
+            continue
+
+        counts[currency] = counts.get(
+            currency,
+            0
+        ) + 1
+
+    if not counts:
+        return None
+
+    return max(
+        counts,
+        key=counts.get
+    )
+
+
+def fallback_filing_metric(
+    record: dict,
+    rec: FilingRecord,
+    filing,
+    metric: str
+) -> dict | None:
+    """Recover one missing metric directly from filing-level XBRL."""
+
+    concepts = FILING_FALLBACK_CONCEPTS.get(
+        metric,
+        ()
+    )
+
+    if not concepts:
+        return None
+
+    xbrl = filing.xbrl()
+
+    if xbrl is None:
+        return None
+
+    preferred_currency = get_record_currency(
+        record
+    )
+
+    target_date = str(
+        rec.period_of_report
+    )
+
+    period_type = (
+        "instant"
+        if metric in INSTANT_METRICS
+        else "duration"
+    )
+
+    for concept in concepts:
+
+        df = (
+            xbrl.facts
+            .query()
+            .by_concept(
+                concept,
+                exact=True
+            )
+            .by_dimension(None)
+            .to_dataframe()
+        )
+
+        if df.empty:
+            continue
+
+        if period_type == "duration":
+
+            matches = df[
+                (df["period_type"] == "duration")
+                & (
+                    df["period_end"].astype(str)
+                    == target_date
+                )
+            ]
+
+        else:
+
+            matches = df[
+                (df["period_type"] == "instant")
+                & (
+                    df["period_instant"].astype(str)
+                    == target_date
+                )
+            ]
+
+        if matches.empty:
+            continue
+
+        if preferred_currency:
+
+            currency_matches = matches[
+                matches["currency"]
+                == preferred_currency
+            ]
+
+            if currency_matches.empty:
+                continue
+
+            matches = currency_matches
+
+        else:
+
+            currencies = (
+                matches["currency"]
+                .dropna()
+                .unique()
+            )
+
+            if len(currencies) > 1:
+                continue
+
+        if (
+            period_type == "duration"
+            and "fiscal_period" in matches.columns
+        ):
+
+            annual = matches[
+                matches["fiscal_period"] == "FY"
+            ]
+
+            if not annual.empty:
+                matches = annual
+
+        if (
+            period_type == "duration"
+            and "statement_type" in matches.columns
+        ):
+
+            statement_matches = matches[
+                matches["statement_type"]
+                == "IncomeStatement"
+            ]
+
+            if not statement_matches.empty:
+                matches = statement_matches
+
+        row = matches.iloc[0]
+
+        value = row.get(
+            "numeric_value"
+        )
+
+        if hasattr(value, "item"):
+            value = value.item()
+
+        if (
+            isinstance(value, float)
+            and value.is_integer()
+        ):
+            value = int(value)
+
+        return {
+            "value": value,
+            "concept": row.get("concept"),
+            "standard_concept": None,
+            "label": row.get("label"),
+            "period": target_date,
+            "unit": row.get("unit_ref"),
+            "currency": row.get("currency"),
+        }
+
+    return None
+
+def apply_financial_fallbacks(
+    record: dict,
+    rec: FilingRecord,
+    filing,
+    sec_identity: str | None,
+    missing: list[str]
+) -> dict:
+    """Attempt to recover metrics missed by standardized statements."""
+
+    for metric in missing:
+
+        fallback = None
+
+        try:
+
+            if (
+                rec.form in {"10-K", "10-Q"}
+                and sec_identity
+            ):
+
+                fallback = fallback_companyfacts_metric(
+                    rec,
+                    sec_identity,
+                    metric
+                )
+
+            if fallback is None:
+
+                fallback = fallback_filing_metric(
+                    record,
+                    rec,
+                    filing,
+                    metric
+                )
+
+            if fallback is not None:
+                record[metric] = fallback
+
+        except Exception:
+            continue
+
+    return record
+
 def extract_financial_record(
     rec: FilingRecord,
     filing,
     sec_identity: str | None = None
 ) -> dict:
-    """Extract normalized financial metrics from an SEC filing."""
 
     record = extract_standardized_financial_record(
         rec,
@@ -1118,10 +1128,25 @@ def extract_financial_record(
     ]
 
     if missing:
-        record["missing_metrics"] = missing
-        record["status"] = "partial"
-    else:
-        record["missing_metrics"] = []
-        record["status"] = "complete"
+        record = apply_financial_fallbacks(
+            record,
+            rec,
+            filing,
+            sec_identity,
+            missing
+        )
+
+    missing = [
+        metric
+        for metric in FINANCIAL_METRICS
+        if record.get(metric) is None
+    ]
+
+    record["missing_metrics"] = missing
+    record["status"] = (
+        "complete"
+        if not missing
+        else "partial"
+    )
 
     return record

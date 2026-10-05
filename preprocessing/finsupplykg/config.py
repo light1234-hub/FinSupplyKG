@@ -17,16 +17,17 @@ DATA_DIR = Path(os.getenv("FSKG_DATA_DIR", ROOT / "data"))
 # Foreign private issuers use 20-F and 6-K.
 
 COMPANIES = {
+    # Chip designers
     "NVDA": {
         "name": "NVIDIA Corporation",
         "forms": ["10-K", "10-Q", "8-K"],
     },
-    "INTC": {
-        "name": "Intel Corporation",
-        "forms": ["10-K", "10-Q", "8-K"],
-    },
     "AMD": {
         "name": "Advanced Micro Devices, Inc.",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "INTC": {
+        "name": "Intel Corporation",
         "forms": ["10-K", "10-Q", "8-K"],
     },
     "AVGO": {
@@ -41,10 +42,17 @@ COMPANIES = {
         "name": "Texas Instruments Incorporated",
         "forms": ["10-K", "10-Q", "8-K"],
     },
+    "NXPI": {
+        "name": "NXP Semiconductors N.V.",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+
     "MU": {
         "name": "Micron Technology, Inc.",
         "forms": ["10-K", "10-Q", "8-K"],
     },
+
+    # Chip equipment and design software
     "AMAT": {
         "name": "Applied Materials, Inc.",
         "forms": ["10-K", "10-Q", "8-K"],
@@ -53,23 +61,98 @@ COMPANIES = {
         "name": "Lam Research Corporation",
         "forms": ["10-K", "10-Q", "8-K"],
     },
-    "MRVL": {
-        "name": "Marvell Technology, Inc.",
+    "KLAC": {
+        "name": "KLA Corporation",
         "forms": ["10-K", "10-Q", "8-K"],
     },
+    "TER": {
+        "name": "Teradyne, Inc.",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "SNPS": {
+        "name": "Synopsys, Inc.",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "CDNS": {
+        "name": "Cadence Design Systems, Inc.",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+
+    # Storage
     "WDC": {
         "name": "Western Digital Corporation",
         "forms": ["10-K", "10-Q", "8-K"],
     },
-    "TSM": {
-        "name": "Taiwan Semiconductor Manufacturing Company Limited",
-        "forms": ["20-F", "6-K"],
+    "STX": {
+        "name": "Seagate Technology Holdings plc",
+        "forms": ["10-K", "10-Q", "8-K"],
     },
-    "ASML": {
-        "name": "ASML Holding N.V.",
-        "forms": ["20-F", "6-K"],
+
+    # Networking and components
+    "ANET": {
+        "name": "Arista Networks, Inc.",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "CSCO": {
+        "name": "Cisco Systems, Inc.",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "APH": {
+        "name": "Amphenol Corporation",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "GLW": {
+        "name": "Corning Incorporated",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+
+    # Servers
+    "DELL": {
+        "name": "Dell Technologies Inc.",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "SMCI": {
+        "name": "Super Micro Computer, Inc.",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "HPE": {
+        "name": "Hewlett Packard Enterprise Company",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+
+    # Big buyers
+    "MSFT": {
+        "name": "Microsoft Corporation",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "AMZN": {
+        "name": "Amazon.com, Inc.",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "GOOGL": {
+        "name": "Alphabet Inc.",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "META": {
+        "name": "Meta Platforms, Inc.",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "ORCL": {
+        "name": "Oracle Corporation",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+    "AAPL": {
+        "name": "Apple Inc.",
+        "forms": ["10-K", "10-Q", "8-K"],
+    },
+
+    # Automotive
+    "TSLA": {
+        "name": "Tesla, Inc.",
+        "forms": ["10-K", "10-Q", "8-K"],
     },
 }
+
 
 
 TICKERS = list(COMPANIES.keys())

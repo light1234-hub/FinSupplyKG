@@ -1143,6 +1143,10 @@ def extract_financial_record(
     ]
 
     record["missing_metrics"] = missing
+    record["missing_reasons"] = {
+        metric: "not_found_after_fallbacks"
+        for metric in missing
+    }
     record["status"] = (
         "complete"
         if not missing

@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import json
-
 from pathlib import Path
 
 from .config import DATA_DIR, PipelineConfig
-from .fetch import fetch_filings
 from .xbrl import extract_financial_record
 
 
@@ -18,7 +16,7 @@ STRUCTURED_FORMS = {
 
 def save_financial_record(
     record: dict,
-    output_dir: Path
+    output_dir: Path,
 ) -> Path:
     """Save one normalized financial record as JSON."""
 
@@ -34,7 +32,7 @@ def save_financial_record(
 
     company_dir.mkdir(
         parents=True,
-        exist_ok=True
+        exist_ok=True,
     )
 
     path = (
@@ -56,25 +54,15 @@ def save_financial_record(
 
 
 def run_financial_pipeline(
-    cfg: PipelineConfig | None = None
+    filings: list[tuple[object, object]],
+    cfg: PipelineConfig,
 ) -> dict:
-    """Fetch filings, extract structured financials and save them."""
-
-    if cfg is None:
-        cfg = PipelineConfig()
-
-    raw_dir = DATA_DIR / "raw"
+    """Extract structured financial data from fetched SEC filings."""
 
     output_dir = (
         DATA_DIR
         / "processed"
         / "financials"
-    )
-
-    filings = fetch_filings(
-        cfg,
-        raw_dir,
-        cache_documents=False,
     )
 
     total = 0
@@ -90,16 +78,15 @@ def run_financial_pipeline(
         total += 1
 
         try:
-
             record = extract_financial_record(
                 rec,
                 filing,
-                cfg.sec_identity
+                cfg.sec_identity,
             )
 
             path = save_financial_record(
                 record,
-                output_dir
+                output_dir,
             )
 
             if record["status"] == "complete":
@@ -120,6 +107,7 @@ def run_financial_pipeline(
                 print(
                     f"⚠ {rec.ticker:<5} "
                     f"{rec.form:<4} "
+                    f"{rec.period_of_report} "
                     f"missing="
                     f"{record['missing_metrics']} "
                     f"-> {path}"
@@ -143,24 +131,13 @@ def run_financial_pipeline(
         "failed": failed,
     }
 
-    print("\n" + "=" * 60)
+    print()
+    print("=" * 60)
     print("FINANCIAL EXTRACTION COMPLETE")
     print("=" * 60)
-
-    print(
-        f"Total records: {total}"
-    )
-
-    print(
-        f"Complete: {complete}"
-    )
-
-    print(
-        f"Partial: {partial}"
-    )
-
-    print(
-        f"Failed: {failed}"
-    )
+    print(f"Total records: {total}")
+    print(f"Complete: {complete}")
+    print(f"Partial: {partial}")
+    print(f"Failed: {failed}")
 
     return summary

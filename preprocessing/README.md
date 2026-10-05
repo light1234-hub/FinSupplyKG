@@ -1,29 +1,35 @@
 # FinSupplyKG — SEC preprocessing pipeline
 
-FinSupplyKG preprocesses SEC filings for 13 semiconductor and semiconductor-adjacent companies. The current pipeline fetches filings from SEC EDGAR, extracts narrative sections and structured financial metrics, and saves the results as JSON for downstream cleaning, entity extraction, relation extraction, and Neo4j ingestion.
+FinSupplyKG preprocesses SEC filings for a 30-company AI and semiconductor
+supply-chain universe. The pipeline fetches filings from SEC EDGAR, extracts
+narrative sections and structured financial metrics, and saves the results as
+JSON for downstream entity extraction, relation extraction, and Neo4j
+ingestion.
 
 ## Current coverage
 
-### US issuers
+| Layer | Companies |
+|---|---|
+| Chip designers | `NVDA`, `AMD`, `INTC`, `AVGO`, `QCOM`, `TXN`, `NXPI`, `MU` |
+| Chip equipment / design software | `AMAT`, `LRCX`, `KLAC`, `TER`, `SNPS`, `CDNS` |
+| Storage | `WDC`, `STX` |
+| Networking / components | `ANET`, `CSCO`, `APH`, `GLW` |
+| Servers | `DELL`, `SMCI`, `HPE` |
+| Big buyers | `MSFT`, `AMZN`, `GOOGL`, `META`, `ORCL`, `AAPL` |
+| Automotive | `TSLA` |
 
-`NVDA`, `INTC`, `AMD`, `AVGO`, `QCOM`, `TXN`, `MU`, `AMAT`, `LRCX`, `MRVL`, `WDC`
-
-Forms monitored:
+All 30 companies currently use:
 
 - `10-K` — annual report
 - `10-Q` — quarterly report
-- `8-K` — current/material event report
+- `8-K` — current / material-event report
 
-### Foreign private issuers
+Narrative extraction runs on `10-K`, `10-Q`, and `8-K`.
 
-`TSM`, `ASML`
+Structured financial extraction runs on `10-K` and `10-Q`.
 
-Forms monitored:
-
-- `20-F` — annual report
-- `6-K` — current/interim report
-
-Structured financial extraction is currently applied to `10-K`, `10-Q`, and `20-F`. `8-K` and `6-K` are used for narrative extraction only.
+The codebase still contains `20-F` and `6-K` support from earlier development,
+but those forms are not part of the current 30-company regression scope.
 
 ## Setup
 

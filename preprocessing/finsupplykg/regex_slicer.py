@@ -12,7 +12,10 @@ import re
 
 from .config import SectionSpec
 
-_ANY_ITEM = re.compile(r"(?im)^(?:part\s+[ivx]+\s*[,.\-]?\s*)?item\s+(\d{1,2}[a-z]?)(?![0-9a-z])")
+_ANY_ITEM = re.compile(
+    r"(?im)^(?:part\s+[ivx]+\s*[,.\-]?\s*)?"
+    r"item\s+(\d{1,2}(?:\.\d{2})?[a-z]?)(?![0-9a-z])"
+)
 
 # Headings of other sections. They mark where a section ends in filings whose headings do
 # not start with "Item N" (e.g. Intel's FY2024 10-K).
@@ -27,7 +30,11 @@ _OTHER_TITLES = [
     r"financial information", r"the offer and listing", r"additional information",
     r"identity of directors.*", r"offer statistics.*",
     # Top-level sections of integrated annual reports filed as 20-F (ASML).
-    r"corporate conduct", r"corporate governance", r"sustainability statements?",
+    r"risk\s+and\s+security",
+    r"information security",
+    r"corporate conduct",
+    r"corporate governance",
+    r"sustainability statements?",
 ]
 
 
@@ -36,7 +43,12 @@ def _title_line(title: str) -> re.Pattern[str]:
     # trailing page reference as printed in tables of contents ("Risk Factors 31", "Properties 8, 49").
     # A trailing "." is not allowed: in hard-wrapped text, lines like "our business." are sentence ends.
     return re.compile(
-        rf"(?im)^(?:item\s+\d{{1,2}}[a-z]?\s*[.:\-]?\s*)?{title}\s*:?(?:\s+\d{{1,3}}(?:\s*[-,]\s*\d{{1,3}})*)?\s*$"
+        rf"(?im)^"
+        rf"(?:item\s+\d{{1,2}}(?:\.\d{{2}})?[a-z]?\s*[.:\-]?\s*)?"
+        rf"{title}"
+        rf"\s*:?"
+        rf"(?:\s+\d{{1,3}}(?:\s*[-,]\s*\d{{1,3}})*)?"
+        rf"\s*$"
     )
 
 

@@ -30,7 +30,11 @@ _OTHER_TITLES = [
     r"financial information", r"the offer and listing", r"additional information",
     r"identity of directors.*", r"offer statistics.*",
     # Top-level sections of integrated annual reports filed as 20-F (ASML).
-    r"corporate conduct", r"corporate governance", r"sustainability statements?",
+    r"risk\s+and\s+security",
+    r"information security",
+    r"corporate conduct",
+    r"corporate governance",
+    r"sustainability statements?",
 ]
 
 

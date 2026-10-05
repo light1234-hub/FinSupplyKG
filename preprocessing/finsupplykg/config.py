@@ -91,7 +91,17 @@ class SectionSpec:
 
 # Sections that carry supplier / customer / dependency disclosures.
 SECTIONS_10K = [
-    SectionSpec("business", "1", "item1", "business", (r"business", r"fundamentals of our business")),
+    SectionSpec(
+        "business",
+        "1",
+        "item1",
+        "business",
+        (
+            r"business",
+            r"our business",
+            r"fundamentals of our business",
+        ),
+    ),
     SectionSpec("risk_factors", "1A", "item1a", "risk_factors", (r"risk factors",)),
     SectionSpec("mdna", "7", "item7", "management_discussion",
                 (r"management'?s discussion and analysis(?: of financial condition and results of operations)?",)),
@@ -102,8 +112,17 @@ SECTIONS_20F = [
     SectionSpec("key_information", "3", "item3", "risk_factors", (r"key information", r"risk factors")),
     SectionSpec("business", "4", "item4", "business",
                 (r"information on the company", r"our business", r"our business model")),
-    SectionSpec("operating_review", "5", "item5", "management_discussion",
-                (r"operating and financial reviews? and prospects", r"financial performance")),
+    SectionSpec(
+        "operating_review",
+        "5",
+        "item5",
+        "management_discussion",
+        (
+            r"operating and financial reviews? and prospects",
+            r"financial\s+performance",
+            r"message from our (?:executive vice president\s+and\s+)?chief financial officer",
+        ),
+    ),
 ]
 
 SECTIONS_10Q = [
@@ -114,14 +133,16 @@ SECTIONS_10Q = [
             r"management'?s discussion and analysis"
             r"(?: of financial condition and results of operations)?",
         ),
-        edgar_item="Item 2",
+        edgar_item="Part I, Item 2",
     ),
 
     SectionSpec(
         key="risk_factors",
         item="1A",
-        title_patterns=(r"risk factors",),
-        edgar_item="Item 1A",
+        title_patterns=(
+            r"risk factors",
+        ),
+        edgar_item="Part II, Item 1A",
     ),
 ]
 
@@ -196,6 +217,27 @@ SECTIONS_8K = [
             r"material impairments?",
         ),
         edgar_item="Item 2.06",
+    ),
+
+    SectionSpec(
+        key="equity_sales",
+        item="3.02",
+        title_patterns=(
+            r"unregistered sales of equity securities",
+        ),
+        edgar_item="Item 3.02",
+    ),
+
+    SectionSpec(
+        key="management_changes",
+        item="5.02",
+        title_patterns=(
+            r"departure of directors or certain officers.*",
+            r"election of directors.*",
+            r"appointment of certain officers.*",
+            r"compensatory arrangements of certain officers.*",
+        ),
+        edgar_item="Item 5.02",
     ),
 
     SectionSpec(

@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-
+from lxml import html as lxml_html
 from datamule import Document
 import warnings
 from .config import PipelineConfig, SectionSpec, sections_for
@@ -68,46 +68,198 @@ def _from_datamule(
 
     return max(parts, key=len) if parts else ""
 
+def _is_bad_edgar_section(text: str) -> bool:
+    cleaned = normalize_text(text).lower()
 
-def _from_edgartools(obj, spec: SectionSpec) -> str:
+    if "form 10-k cross-reference index" in cleaned:
+        return True
+
+    if (
+        "item number" in cleaned[:1000]
+        and "signatures" in cleaned[-2500:]
+    ):
+        return True
+
+    return False
+
+def _from_edgartools(
+    obj,
+    spec: SectionSpec,
+) -> str:
+
     if obj is None:
         return ""
 
     try:
+
         if spec.edgar_item:
             with warnings.catch_warnings():
-                warnings.simplefilter("ignore", FutureWarning)
+                warnings.simplefilter(
+                    "ignore",
+                    FutureWarning,
+                )
 
-                value = obj[spec.edgar_item]
+                value = obj[
+                    spec.edgar_item
+                ]
 
-            return value or ""
-
-        if spec.edgar_attr:
+        elif spec.edgar_attr:
             value = getattr(
                 obj,
                 spec.edgar_attr,
-                None
+                None,
             )
 
-            return value or ""
+        else:
+            return ""
+
+        text = value or ""
+
+        if (
+            text
+            and _is_bad_edgar_section(
+                text
+            )
+        ):
+            log.info(
+                "edgartools extraction for %s "
+                "rejected: cross-reference/signature span",
+                spec.key,
+            )
+
+            return ""
+
+        return text
 
     except Exception as e:
         log.debug(
             "edgartools extraction failed for %s: %s",
             spec.key,
-            e
+            e,
         )
 
     return ""
+def _extract_ex99_sections(
+    rec: FilingRecord,
+    filing,
+    cfg: PipelineConfig,
+) -> list[Section]:
+
+    sections = []
+
+    try:
+        exhibits = filing.exhibits
+    except Exception as e:
+        log.warning(
+            "%s %s: could not load exhibits: %s",
+            rec.ticker,
+            rec.form,
+            e,
+        )
+        return sections
+
+    for exhibit in exhibits:
+
+        document_type = (
+            getattr(
+                exhibit,
+                "document_type",
+                "",
+            )
+            or ""
+        )
+
+        if not document_type.startswith("EX-99"):
+            continue
+
+        try:
+            content = exhibit.download()
+        except Exception as e:
+            log.warning(
+                "%s %s: %s download failed: %s",
+                rec.ticker,
+                rec.form,
+                document_type,
+                e,
+            )
+            continue
+
+        if not content:
+            continue
+
+        try:
+            root = lxml_html.fromstring(
+                content
+            )
+
+            text = root.text_content()
+
+        except Exception as e:
+            log.warning(
+                "%s %s: %s HTML parsing failed: %s",
+                rec.ticker,
+                rec.form,
+                document_type,
+                e,
+            )
+
+            text = str(content)
+
+        text = normalize_text(text)
+
+        if len(text) < 500:
+            log.info(
+                "%s %s: %s rejected (%d chars)",
+                rec.ticker,
+                rec.form,
+                document_type,
+                len(text),
+            )
+            continue
+
+        section_name = (
+            "exhibit_"
+            + document_type
+            .replace("EX-", "")
+            .replace(".", "_")
+            .lower()
+        )
+
+        sections.append(
+            Section(
+                ticker=rec.ticker,
+                form=rec.form,
+                accession=rec.accession,
+                filing_date=rec.filing_date,
+                section=section_name,
+                method="exhibit",
+                text=text,
+            )
+        )
+
+        log.info(
+            "%s %s: %s extracted (%d chars)",
+            rec.ticker,
+            rec.form,
+            document_type,
+            len(text),
+        )
+
+    return sections
 
 def minimum_section_chars(
     form: str,
-    cfg: PipelineConfig
+    section_key: str,
+    cfg: PipelineConfig,
 ) -> int:
+
     if form == "8-K":
         return 500
 
     if form == "10-Q":
+        if section_key == "risk_factors":
+            return 150
+
         return 2_000
 
     return cfg.min_section_chars
@@ -128,32 +280,45 @@ def extract_sections(
     # by 10-K, 10-Q, 8-K and 20-F filings.
     # Treat the filing text as one narrative section.
     if rec.form == "6-K":
-        if not full_text:
+
+        sections = []
+
+        if full_text:
+            sections.append(
+                Section(
+                    ticker=rec.ticker,
+                    form=rec.form,
+                    accession=rec.accession,
+                    filing_date=rec.filing_date,
+                    section="full_report",
+                    method="full_text",
+                    text=full_text,
+                )
+            )
+
+            log.info(
+                "%s %s: extracted full filing text (%d chars)",
+                rec.ticker,
+                rec.form,
+                len(full_text),
+            )
+
+        sections.extend(
+            _extract_ex99_sections(
+                rec,
+                filing,
+                cfg,
+            )
+        )
+
+        if not sections:
             log.warning(
-                "%s %s: filing text is empty",
+                "%s %s: no narrative content extracted",
                 rec.ticker,
                 rec.form,
             )
-            return []
 
-        log.info(
-            "%s %s: extracted full filing text (%d chars)",
-            rec.ticker,
-            rec.form,
-            len(full_text),
-        )
-
-        return [
-            Section(
-                ticker=rec.ticker,
-                form=rec.form,
-                accession=rec.accession,
-                filing_date=rec.filing_date,
-                section="full_report",
-                method="full_text",
-                text=full_text,
-            )
-        ]
+        return sections
 
     specs = sections_for(rec.form)
 
@@ -202,20 +367,69 @@ def extract_sections(
         order = []
 
     sections = []
-    min_chars = minimum_section_chars(
-        rec.form,
-        cfg
-    )
     for spec in specs:
+        min_chars = minimum_section_chars(
+                rec.form,
+                spec.key,
+                cfg,
+        )
         for method in order:
-            text = normalize_text(strategies[method](spec))
+            text = normalize_text(
+                strategies[method](spec)
+            )
+
             if min_chars <= len(text) <= cfg.max_section_chars:
-                sections.append(Section(rec.ticker, rec.form, rec.accession, rec.filing_date,
-                                        spec.key, method, text))
-                log.info("%s %s: %s via %s (%d chars)", rec.ticker, rec.form, spec.key, method, len(text))
+                sections.append(
+                    Section(
+                        rec.ticker,
+                        rec.form,
+                        rec.accession,
+                        rec.filing_date,
+                        spec.key,
+                        method,
+                        text,
+                    )
+                )
+
+                log.info(
+                    "%s %s: %s via %s (%d chars)",
+                    rec.ticker,
+                    rec.form,
+                    spec.key,
+                    method,
+                    len(text),
+                )
+
                 break
+
             if text:
-                log.info("%s %s: %s via %s rejected (%d chars)", rec.ticker, rec.form, spec.key, method, len(text))
+                log.info(
+                    "%s %s: %s via %s rejected (%d chars)",
+                    rec.ticker,
+                    rec.form,
+                    spec.key,
+                    method,
+                    len(text),
+                )
+
         else:
-            log.warning("%s %s: %s not found by any parser", rec.ticker, rec.form, spec.key)
+            log.warning(
+                "%s %s: %s not found by any parser",
+                rec.ticker,
+                rec.form,
+                spec.key,
+            )
+
+
+    if rec.form == "8-K":
+        sections.extend(
+            _extract_ex99_sections(
+                rec,
+                filing,
+                cfg,
+            )
+        )
+
+
     return sections
+

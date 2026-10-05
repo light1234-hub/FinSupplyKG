@@ -123,12 +123,32 @@ def fetch_filings(
 
                 if meta_path.exists():
 
-                    rec = FilingRecord(
-                        **json.loads(
-                            meta_path.read_text(
-                                encoding="utf-8"
-                            )
+                    metadata = json.loads(
+                        meta_path.read_text(
+                            encoding="utf-8"
                         )
+                    )
+
+                    # Always use paths from the current project location.
+                    metadata["html_path"] = str(
+                        html_path
+                    )
+
+                    metadata["text_path"] = str(
+                        text_path
+                    )
+
+                    rec = FilingRecord(
+                        **metadata
+                    )
+
+                    # Repair the cached metadata file as well.
+                    meta_path.write_text(
+                        json.dumps(
+                            asdict(rec),
+                            indent=2
+                        ),
+                        encoding="utf-8",
                     )
 
                 else:
@@ -153,16 +173,14 @@ def fetch_filings(
                                 filing,
                                 "period_of_report",
                                 ""
-                            )
-                            or ""
+                            ) or ""
                         ),
                         primary_document=str(
                             getattr(
                                 filing,
                                 "primary_document",
                                 ""
-                            )
-                            or f"{slug}.htm"
+                            ) or f"{slug}.htm"
                         ),
                         html_path=str(
                             html_path
@@ -179,6 +197,7 @@ def fetch_filings(
                         ),
                         encoding="utf-8",
                     )
+
 
                 # -----------------------------------------
                 # OPTIONAL HTML / TEXT CACHING

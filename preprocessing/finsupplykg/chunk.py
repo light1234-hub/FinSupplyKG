@@ -37,27 +37,43 @@ def split_sentences(text: str) -> list[str]:
             sentences += [s.strip() for s in _SEGMENTER.segment(para) if s.strip()]
     return sentences
 
+def window_sentences(
+    sentences: list[str],
+    max_words: int,
+    overlap: int,
+) -> list[list[str]]:
+    """Pack sentences into windows of <= max_words.
 
-def window_sentences(sentences: list[str], max_words: int, overlap: int) -> list[list[str]]:
-    """Pack sentences into windows of <= max_words; each window repeats the previous window's
-    last ``overlap`` sentences. A single sentence longer than max_words becomes its own window."""
-    windows: list[list[str]] = []
+    Each window repeats the previous window's last `overlap`
+    sentences. A single sentence longer than max_words becomes
+    its own window.
+    """
+
+    windows = []
     i = 0
+
     while i < len(sentences):
-        window, words = [], 0
+        window = []
+        words = 0
         j = i
+
         while j < len(sentences):
             n = len(sentences[j].split())
+
             if window and words + n > max_words:
                 break
+
             window.append(sentences[j])
             words += n
             j += 1
+
         windows.append(window)
+
         if j >= len(sentences):
             break
-        # Step back `overlap` sentences but always advance at least one.
+
         i = max(j - overlap, i + 1)
+
     return windows
 
 

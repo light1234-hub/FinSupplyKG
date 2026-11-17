@@ -21,11 +21,21 @@ FinSupplyKG is a Python-based financial intelligence project exploring how publi
 Python · SEC EDGAR · EdgarTools · Datamule · XBRL · pySBD · BM25 · optional Gemini embeddings
 
 ## How To Run
-1. Create and activate a Python virtual environment.
-2. Install dependencies: pip install -r requirements.txt.
-3. Copy .env.example to .env and set SEC_IDENTITY to an appropriate name and email address. Do not commit .env.
-4. Run the narrative and financial extraction workflow:
+1.Navigate to the preprocessing directory:
+   cd preprocessing
+2. Create and activate a Python virtual environment.
+3. Install dependencies: pip install -r requirements.txt.
+4. Copy `.env.example` to `.env` and configure your SEC identity.
+5. Run the narrative and financial extraction workflow:
    python run_preprocessing.py
 
 ## Next
 Entity identification, company-relationship extraction, knowledge-graph construction (Neo4j), and analysis of financial-event propagation are planned stages, not completed capabilities in this repository. The frontend is currently a mock-data prototype, not a live prediction system.
+
+## Documentation
+
+For implementation details, setup instructions, and testing,
+see the [Preprocessing Documentation](preprocessing/README.md).
+
+For a detailed explanation of the extraction pipeline,
+see the [Data Extraction Pipeline Report](docs/Data_Extraction_Pipeline.pdf).
